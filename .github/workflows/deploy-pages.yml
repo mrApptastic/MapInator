@@ -23,6 +23,9 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore MapInator.slnx
 
+      - name: Run Mapper to fetch place-name data
+        run: dotnet run --project MapInator.Mapper/MapInator.Mapper.csproj -- --output=MapInator.App/wwwroot
+
       - name: Publish Blazor WASM
         run: dotnet publish MapInator.App/MapInator.App.csproj -c Release -o release --nologo
 
