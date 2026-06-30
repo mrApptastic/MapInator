@@ -1,6 +1,6 @@
 window.mapInterop = (function () {
     var map = null;
-    // filePath → array of Feature objects added via map.data
+    // filePath → L.geoJSON layer
     var layers = {};
 
     // Colour palette per hoofdtype (cycles if more types than colours)
@@ -22,48 +22,15 @@ window.mapInterop = (function () {
 
     function initMap(elementId) {
         if (map) return;
-        map = new google.maps.Map(document.getElementById(elementId), {
-            center: { lat: 56.0, lng: 10.0 },
-            zoom: 7,
-            mapTypeId: 'roadmap',
-            streetViewControl: false,
-            fullscreenControl: true
+        map = L.map(elementId, {
+            center: [56.0, 10.0],
+            zoom: 7
         });
 
-        // Info window for clicked features
-        var infoWindow = new google.maps.InfoWindow();
-
-        map.data.addListener('click', function (event) {
-            var props = event.feature;
-            var navn = props.getProperty('navn') || '';
-            var type = props.getProperty('undertype') || props.getProperty('hoofdtype') || '';
-            var status = props.getProperty('navnestatus') || '';
-            var kommuner = props.getProperty('kommuner') || [];
-            var content =
-                '<div style="font-family:sans-serif;max-width:220px">' +
-                '<strong style="font-size:14px">' + escHtml(navn) + '</strong>' +
-                '<div class="text-muted" style="font-size:12px">' + escHtml(type) + '</div>' +
-                (kommuner.length ? '<div style="font-size:11px;margin-top:4px">' + kommuner.map(escHtml).join(', ') + '</div>' : '') +
-                '</div>';
-            infoWindow.setContent(content);
-            infoWindow.setPosition(event.latLng);
-            infoWindow.open(map);
-        });
-
-        map.data.setStyle(function (feature) {
-            var hoofdtype = feature.getProperty('hoofdtype') || '';
-            var colour = colourFor(hoofdtype);
-            return {
-                icon: {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 5,
-                    fillColor: colour,
-                    fillOpacity: 0.85,
-                    strokeColor: '#fff',
-                    strokeWeight: 1
-                }
-            };
-        });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }).addTo(map);
     }
 
     function addGeoJsonLayer(filePath) {
@@ -72,8 +39,46 @@ window.mapInterop = (function () {
         fetch(filePath)
             .then(function (r) { return r.json(); })
             .then(function (geojson) {
-                var features = map.data.addGeoJson(geojson);
-                layers[filePath] = features;
+                var layer = L.geoJSON(geojson, {
+                    pointToLayer: function (feature, latlng) {
+                        var hoofdtype = (feature.properties && feature.properties.hoofdtype) || '';
+                        var colour = colourFor(hoofdtype);
+                        return L.circleMarker(latlng, {
+                            radius: 5,
+                            fillColor: colour,
+                            fillOpacity: 0.85,
+                            color: '#fff',
+                            weight: 1
+                        });
+                    },
+                    onEachFeature: function (feature, layer) {
+                        if (!feature.properties) return;
+                        var props = feature.properties;
+                        var navn = props.navn || '';
+                        var type = props.undertype || props.hoofdtype || '';
+                        var kommuner = props.kommuner || [];
+                        var content =
+                            '<div style="font-family:sans-serif;max-width:220px">' +
+                            '<strong style="font-size:14px">' + escHtml(navn) + '</strong>' +
+                            '<div class="text-muted" style="font-size:12px">' + escHtml(type) + '</div>' +
+                            (kommuner.length ? '<div style="font-size:11px;margin-top:4px">' + kommuner.map(escHtml).join(', ') + '</div>' : '') +
+                            '</div>';
+                        layer.bindPopup(content);
+                    },
+                    style: function (feature) {
+                        var hoofdtype = (feature.properties && feature.properties.hoofdtype) || '';
+                        var colour = colourFor(hoofdtype);
+                        return {
+                            color: colour,
+                            weight: 2,
+                            opacity: 0.85,
+                            fillColor: colour,
+                            fillOpacity: 0.5
+                        };
+                    }
+                });
+                layer.addTo(map);
+                layers[filePath] = layer;
             })
             .catch(function (err) {
                 console.warn('MapInator: could not load layer', filePath, err);
@@ -82,7 +87,7 @@ window.mapInterop = (function () {
 
     function removeGeoJsonLayer(filePath) {
         if (!map || !layers[filePath]) return;
-        layers[filePath].forEach(function (f) { map.data.remove(f); });
+        map.removeLayer(layers[filePath]);
         delete layers[filePath];
     }
 
