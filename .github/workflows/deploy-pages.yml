@@ -1,0 +1,43 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore MapInator.slnx
+
+      - name: Publish Blazor WASM
+        run: dotnet publish MapInator.App/MapInator.App.csproj -c Release -o release --nologo
+
+      - name: Configure for GitHub Pages
+        run: |
+          # Fix base href to match GitHub Pages URL (/<repo-name>/)
+          REPO_NAME=$(echo "$GITHUB_REPOSITORY" | cut -d'/' -f2)
+          sed -i "s|<base href=\"/\" />|<base href=\"/${REPO_NAME}/\" />|g" release/wwwroot/index.html
+          # Copy index.html as 404.html for SPA client-side routing
+          cp release/wwwroot/index.html release/wwwroot/404.html
+          # Prevent Jekyll from processing underscore-prefixed Blazor files
+          touch release/wwwroot/.nojekyll
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: release/wwwroot

@@ -1,0 +1,50 @@
+@page "/"
+@inject ITranslationService T
+
+<PageTitle>@T.Get("app.title")</PageTitle>
+
+<div class="d-flex flex-column" style="height:100vh;overflow:hidden;">
+    <nav class="navbar navbar-dark bg-primary px-3 py-2 flex-shrink-0">
+        <span class="navbar-brand fw-bold">@T.Get("app.title")</span>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm @(T.CurrentLanguage == "da" ? "btn-light" : "btn-outline-light")"
+                    @onclick='() => ChangeLanguage("da")'>DA</button>
+            <button class="btn btn-sm @(T.CurrentLanguage == "en" ? "btn-light" : "btn-outline-light")"
+                    @onclick='() => ChangeLanguage("en")'>EN</button>
+        </div>
+    </nav>
+
+    <div class="d-flex flex-grow-1" style="overflow:hidden;">
+        <div class="bg-light border-end overflow-auto flex-shrink-0"
+             style="width:280px;min-width:200px;">
+            <div class="p-2 fw-semibold border-bottom small text-uppercase text-muted">
+                @T.Get("sidebar.title")
+            </div>
+            <TypeSelector OnLayerToggled="HandleLayerToggle" />
+        </div>
+
+        <MapView @ref="_mapView" />
+    </div>
+</div>
+
+@code {
+    private MapView? _mapView;
+
+    protected override async Task OnInitializedAsync() =>
+        await T.SetLanguageAsync("da");
+
+    private async Task HandleLayerToggle((string FilePath, bool Active) args)
+    {
+        if (_mapView is null) return;
+        if (args.Active)
+            await _mapView.AddLayerAsync(args.FilePath);
+        else
+            await _mapView.RemoveLayerAsync(args.FilePath);
+    }
+
+    private async Task ChangeLanguage(string lang)
+    {
+        await T.SetLanguageAsync(lang);
+        StateHasChanged();
+    }
+}

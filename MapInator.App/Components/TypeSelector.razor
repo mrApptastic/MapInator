@@ -1,0 +1,104 @@
+@inject DataService DataService
+@inject ITranslationService T
+
+@if (_loading)
+{
+    <div class="p-3 text-muted"><em>@T.Get("sidebar.loading")</em></div>
+}
+else if (_error)
+{
+    <div class="p-3 text-danger">@T.Get("sidebar.error")</div>
+}
+else
+{
+    <div class="accordion accordion-flush" id="typeAccordion">
+        @foreach (var (entry, idx) in _types.Select((e, i) => (e, i)))
+        {
+            var collapseId = $"collapse-{idx}";
+            var headingId = $"heading-{idx}";
+            var allChecked = entry.Undertyper.All(u => _checked.GetValueOrDefault(u.FilePath));
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="@headingId">
+                    <button class="accordion-button collapsed py-2 px-3" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#@collapseId"
+                            aria-expanded="false" aria-controls="@collapseId">
+                        <strong>@T.GetType(entry.Hovedtype)</strong>
+                        <span class="badge bg-secondary ms-2">@entry.Undertyper.Count</span>
+                    </button>
+                </h2>
+                <div id="@collapseId" class="accordion-collapse collapse" aria-labelledby="@headingId">
+                    <div class="accordion-body p-2">
+                        <div class="d-flex justify-content-between mb-1">
+                            <button class="btn btn-link btn-sm p-0 text-decoration-none" @onclick="() => SelectAll(entry, true)">
+                                @T.Get("sidebar.selectAll")
+                            </button>
+                            <button class="btn btn-link btn-sm p-0 text-decoration-none" @onclick="() => SelectAll(entry, false)">
+                                @T.Get("sidebar.deselectAll")
+                            </button>
+                        </div>
+                        @foreach (var sub in entry.Undertyper)
+                        {
+                            var filePath = sub.FilePath;
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="@sub.Slug"
+                                       checked="@_checked.GetValueOrDefault(filePath)"
+                                       @onchange="e => OnToggle(filePath, (bool)e.Value!)" />
+                                <label class="form-check-label small" for="@sub.Slug">
+                                    @T.GetSubtype(sub.Undertype)
+                                    <span class="text-muted">(@sub.Count)</span>
+                                </label>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public EventCallback<(string FilePath, bool Active)> OnLayerToggled { get; set; }
+
+    private List<MapInator.Shared.Models.TypeIndexEntry> _types = [];
+    private Dictionary<string, bool> _checked = new();
+    private bool _loading = true;
+    private bool _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _types = await DataService.GetTypesAsync();
+        }
+        catch
+        {
+            _error = true;
+        }
+        finally
+        {
+            _loading = false;
+        }
+        T.OnLanguageChanged += StateHasChanged;
+    }
+
+    private async Task OnToggle(string filePath, bool active)
+    {
+        _checked[filePath] = active;
+        await OnLayerToggled.InvokeAsync((filePath, active));
+    }
+
+    private async Task SelectAll(MapInator.Shared.Models.TypeIndexEntry entry, bool active)
+    {
+        foreach (var sub in entry.Undertyper)
+        {
+            if (_checked.GetValueOrDefault(sub.FilePath) != active)
+            {
+                _checked[sub.FilePath] = active;
+                await OnLayerToggled.InvokeAsync((sub.FilePath, active));
+            }
+        }
+        StateHasChanged();
+    }
+
+    public void Dispose() => T.OnLanguageChanged -= StateHasChanged;
+}

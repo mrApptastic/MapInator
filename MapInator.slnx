@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="MapInator.Shared/MapInator.Shared.csproj" />
+  <Project Path="MapInator.Mapper/MapInator.Mapper.csproj" />
+  <Project Path="MapInator.App/MapInator.App.csproj" />
+</Solution>
